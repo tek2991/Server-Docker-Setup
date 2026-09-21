@@ -24,7 +24,8 @@ This repository manages the production-ready container infrastructure for runnin
    - [4.1 Clone Application Repository](#41-clone-application-repository)
    - [4.2 Configure Production Environment (`.env`)](#42-configure-production-environment-env)
    - [4.3 Run Automated Deployment Script](#43-run-automated-deployment-script)
-   - [4.4 Deploying Sibling Sites (`site-b`, `site-c`, `site-d`)](#44-deploying-sibling-sites-site-b-site-c-site-d)
+   - [4.4 Seed Initial Data (For Fresh Installation)](#44-seed-initial-data-for-fresh-installation)
+   - [4.5 Deploying Sibling Sites (`site-b`, `site-c`, `site-d`)](#45-deploying-sibling-sites-site-b-site-c-site-d)
 8. [Step 5: Configure and Start Caddy Reverse Proxy](#step-5-configure-and-start-caddy-reverse-proxy)
    - [5.1 Review & Update Domains in `Caddyfile`](#51-review--update-domains-in-caddyfile)
    - [5.2 Launch Caddy Proxy](#52-launch-caddy-proxy)
@@ -295,18 +296,24 @@ git clone git@github.com:tek2991/Dwelly-V2.git src
 ```
 
 ### 4.2 Configure Production Environment (`.env`)
+Generate a secure application encryption key using OpenSSL:
+```bash
+echo "base64:$(openssl rand -base64 32)"
+```
+
 Create the production `.env` file from the example:
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-Ensure the database, cache, and URL configuration match the shared stack:
+Ensure the database, cache, and URL configuration match your production domain:
 ```dotenv
 APP_NAME=Dwelly
 APP_ENV=production
+APP_KEY=base64:PASTE_YOUR_GENERATED_KEY_HERE
 APP_DEBUG=false
-APP_URL=https://dwelly.internal.example.com
+APP_URL=https://dwelly-dev.duckdns.org
 
 # Shared MariaDB Stack
 DB_CONNECTION=mysql
@@ -327,11 +334,8 @@ REDIS_CACHE_DB=1
 FILESYSTEM_DISK=public
 ```
 
-If you need to generate an `APP_KEY` for a fresh installation:
-```bash
-docker run --rm -v $(pwd)/src:/var/www/html sites-infra/shared-php-base:latest php artisan key:generate --show
-```
-*(Copy the generated key into `APP_KEY` in your `.env` file).*
+> [!IMPORTANT]
+> Ensure `APP_URL` uses `https://` with your exact domain name (e.g. `https://dwelly-dev.duckdns.org`). Laravel uses this to generate asset URLs and prevent mixed-content warnings.
 
 ### 4.3 Run Automated Deployment Script
 Make `deploy.sh` executable and run it:
@@ -341,18 +345,29 @@ chmod +x deploy.sh
 ```
 
 **What `deploy.sh` performs automatically:**
-1. Pulls the latest commits from the Git repository.
-2. Builds the production Docker image using a multi-stage build (compiles Tailwind CSS & Vite assets via Node 22, installs production Composer dependencies).
-3. Copies compiled frontend assets (`public/build`) from the container to the host filesystem so Caddy can serve them at native speeds.
-4. Runs database migrations: `php artisan migrate --force`.
-5. Creates the storage symlink: `php artisan storage:link`.
-6. Optimizes configuration, routing, and blade view caches: `config:cache`, `route:cache`, `view:cache`.
-7. Optimizes Filament components and icons: `filament:optimize`.
-8. Starts/restarts the application container (`dwelly-app`).
+1. Pulls the latest code from the Git repository.
+2. Builds the production Docker container using multi-stage builds (compiles Tailwind CSS & Vite assets via Node 22, installs production Composer dependencies, and publishes Filament assets).
+3. Runs database migrations: `php artisan migrate --force`.
+4. Starts/restarts the application container (`dwelly-app`).
+5. Publishes Filament assets and creates the storage symlink (`storage:link`, `filament:assets`).
+6. Syncs all compiled assets (`public/build`, `public/css`, `public/js`, `public/fonts`) from the container to `src/public/` with proper read permissions so Caddy can serve them at native speeds.
+7. Optimizes configuration, routing, and blade view caches (`config:cache`, `route:cache`, `view:cache`).
+
+### 4.4 Seed Initial Data (For Fresh Installation)
+To populate the database with default roles, permissions, reference data, organizations, and 50 realistic demo properties:
+```bash
+docker compose run --rm app php artisan migrate:fresh --seed
+```
+
+**Default Seeded Admin Credentials:**
+* **Email:** `admin@dwelly.in`
+* **Password:** `password`
+* **Role:** `Business Owner`
+* **Login URL:** `https://dwelly-dev.duckdns.org/operations`
 
 ---
 
-### 4.4 Deploying Sibling Sites (`site-b`, `site-c`, `site-d`)
+### 4.5 Deploying Sibling Sites (`site-b`, `site-c`, `site-d`)
 Deploying sibling sites follows the exact same workflow:
 1. `cd /opt/sites/site-b && git clone <repo-url> src`
 2. `cp .env.example .env` and adjust database credentials (`DB_DATABASE=site_b`, `DB_USERNAME=site_b`) and assign a unique Redis database index to avoid key collisions:
@@ -581,9 +596,21 @@ Under normal idle conditions, the entire stack consumes **~2.0 GB RAM**, leaving
   docker exec -it dwelly-app chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
   ```
 
-### 4. Styles or JavaScript (Vite Build) Missing on Frontend
-- **Cause**: Caddy serves static files directly from host disk (`/srv/dwelly/public`), but `public/build` was not copied out during build.
-- **Fix**: Run `./deploy.sh` (which automatically runs `docker cp` to extract `public/build` from the container image to host `src/public/build`).
+### 4. Styles, JavaScript, or Filament Assets Missing / 404 on Frontend
+- **Cause**: Caddy serves static files directly from the host filesystem (`/srv/dwelly/public`), but the compiled assets (`build/assets`, `css/filament`, `js/filament`) were not synced to `src/public` on the host, or permissions prevent Caddy from reading them.
+- **Fix**:
+  1. Sync all compiled assets directly from the running container:
+     ```bash
+     cd /opt/sites/dwelly
+     docker compose exec app php artisan filament:assets
+     docker cp dwelly-app:/var/www/html/public/. src/public/
+     chmod -R a+rX src/public/
+     ```
+  2. Verify that `APP_URL` in `.env` matches your exact public URL with `https://` (e.g. `https://dwelly-dev.duckdns.org`), otherwise Vite and Filament might generate HTTP asset URLs causing mixed-content warnings in the browser.
+  3. Restart Caddy to clear any cached negative responses:
+     ```bash
+     cd /opt/sites/proxy && docker compose restart caddy
+     ```
 
 ---
 
