@@ -18,7 +18,6 @@ echo "--> Installing utilities, fail2ban, and iptables-persistent..."
 DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
     curl \
     git \
-    ufw \
     fail2ban \
     iptables-persistent \
     netfilter-persistent \
