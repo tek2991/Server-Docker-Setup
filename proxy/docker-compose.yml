@@ -1,0 +1,36 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      # Mount public directories from sibling site repositories for fast, direct static asset serving
+      - ../dwelly/src/public:/srv/dwelly/public:ro
+      - ../dwelly/src/storage/app/public:/srv/dwelly/public/storage:ro
+      - ../site-b/src/public:/srv/site-b/public:ro
+      - ../site-b/src/storage/app/public:/srv/site-b/public/storage:ro
+      - ../site-c/src/public:/srv/site-c/public:ro
+      - ../site-c/src/storage/app/public:/srv/site-c/public/storage:ro
+      - ../site-d/src/public:/srv/site-d/public:ro
+      - ../site-d/src/storage/app/public:/srv/site-d/public/storage:ro
+    networks:
+      - web
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.2"
+
+networks:
+  web:
+    external: true
+
+volumes:
+  caddy_data:
+  caddy_config:

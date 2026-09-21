@@ -1,0 +1,78 @@
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: shared-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+    command:
+      - --max-connections=250
+      - --innodb-buffer-pool-size=512M
+      - --table-open-cache=1000
+      - --thread-cache-size=32
+      - --wait-timeout=300
+      - --interactive-timeout=300
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    secrets:
+      - db_root_password
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+          cpus: "0.5"
+
+  redis:
+    image: redis:7-alpine
+    container_name: shared-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 100mb --maxmemory-policy allkeys-lru
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.05"
+
+  scheduler:
+    image: sites-infra/shared-php-base:latest
+    container_name: shared-scheduler
+    restart: unless-stopped
+    volumes:
+      - ../dwelly/src:/apps/dwelly
+      - ../site-b/src:/apps/site-b
+      - ../site-c/src:/apps/site-c
+      - ../site-d/src:/apps/site-d
+    networks:
+      - internal
+    entrypoint: >
+      sh -c "while true; do
+        for d in /apps/*/; do
+          if [ -f \"$$d/artisan\" ]; then
+            (cd \"$$d\" && php artisan schedule:run --no-interaction) || true
+          fi
+        done
+        sleep 60
+      done"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.05"
+
+networks:
+  internal:
+    external: true
+
+volumes:
+  mysql_data:
+
+secrets:
+  db_root_password:
+    file: ./secrets/db_root_password.txt

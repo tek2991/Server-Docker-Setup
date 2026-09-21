@@ -1,0 +1,76 @@
+{
+    # Global options
+    # email admin@example.com
+}
+
+# Reusable snippet for security headers and modern compression
+(common_settings) {
+    encode gzip zstd
+    request_body {
+        max_size 30MB
+    }
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}
+
+# -------------------------------------------------------------
+# Dwelly Internal Application
+# -------------------------------------------------------------
+dwelly.internal.example.com {
+    import common_settings
+    root * /srv/dwelly/public
+
+    # FastCGI bridge to the dwelly PHP-FPM container
+    # Passes the container-internal document root (/var/www/html/public) to PHP-FPM
+    php_fastcgi dwelly-app:9000 {
+        root /var/www/html/public
+    }
+
+    # High-performance static file server for CSS, JS, Vite bundles, Filament assets, and uploads
+    file_server
+}
+
+# -------------------------------------------------------------
+# Site B Internal Application
+# -------------------------------------------------------------
+site-b.internal.example.com {
+    import common_settings
+    root * /srv/site-b/public
+
+    php_fastcgi site-b-app:9000 {
+        root /var/www/html/public
+    }
+
+    file_server
+}
+
+# -------------------------------------------------------------
+# Site C Internal Application
+# -------------------------------------------------------------
+site-c.internal.example.com {
+    import common_settings
+    root * /srv/site-c/public
+
+    php_fastcgi site-c-app:9000 {
+        root /var/www/html/public
+    }
+
+    file_server
+}
+
+# -------------------------------------------------------------
+# Site D Internal Application
+# -------------------------------------------------------------
+site-d.internal.example.com {
+    import common_settings
+    root * /srv/site-d/public
+
+    php_fastcgi site-d-app:9000 {
+        root /var/www/html/public
+    }
+
+    file_server
+}

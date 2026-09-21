@@ -1,0 +1,25 @@
+services:
+  app:
+    build:
+      context: ./src
+      args:
+        BASE_IMAGE: sites-infra/shared-php-base:latest
+    container_name: site-c-app
+    restart: unless-stopped
+    volumes:
+      - ./src/storage:/var/www/html/storage
+      - ./.env:/var/www/html/.env:ro
+    networks:
+      - web
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+
+networks:
+  web:
+    external: true
+  internal:
+    external: true
