@@ -142,7 +142,7 @@ Prepare the `/opt/sites` directory with non-root user ownership, then clone this
 sudo mkdir -p /opt/sites
 sudo chown -R $USER:$USER /opt/sites
 
-git clone https://github.com:tek2991/Server-Docker-Setup.git /opt/sites
+git clone https://github.com/tek2991/Server-Docker-Setup.git /opt/sites
 cd /opt/sites
 ```
 
