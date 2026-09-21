@@ -115,7 +115,7 @@ docker exec -it shared-redis redis-cli ping
 Clone Dwelly into `dwelly/src`:
 ```bash
 cd /opt/sites/dwelly
-git clone git@github.com:tek2991/Dwelly-V2.git src
+git clone https://github.com/tek2991/DWELLY-V2.git src
 ```
 *(If prompted for SSH keys, ensure your GitHub deploy key or SSH agent forwarding is enabled).*
 
