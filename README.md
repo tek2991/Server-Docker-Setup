@@ -60,8 +60,29 @@ server-docker-setup/
 
 ## 1. Initial Host Setup (OCI Instance)
 
-### 1.1 Swap Safety Net (4GB)
-Run once on the host VM to safeguard against OOM during heavy migrations or spikes:
+### 1.1 Automated Setup (Recommended)
+You can automate all host prerequisites (system updates, OCI local iptables for ports 80/443, 4GB swap, Docker & Compose, networks, and fail2ban) with:
+```bash
+git clone git@github.com:tek2991/Server-Docker-Setup.git /opt/sites
+cd /opt/sites
+./scripts/setup-host.sh
+newgrp docker
+```
+
+---
+
+### 1.2 Manual Setup (Step-by-Step)
+
+#### A. OCI Local iptables (Ports 80 & 443)
+OCI Ubuntu images drop traffic on ports 80 and 443 by default in iptables, regardless of your OCI Cloud Security List. Open them locally:
+```bash
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+sudo netfilter-persistent save
+```
+
+#### B. Swap Safety Net (4GB)
+Run once on the host VM to safeguard against OOM during heavy migrations or traffic spikes:
 ```bash
 sudo fallocate -l 4G /swapfile
 sudo chmod 600 /swapfile
@@ -70,7 +91,7 @@ sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 ```
 
-### 1.2 Create Shared Docker Networks
+#### C. Create Shared Docker Networks
 ```bash
 docker network create web
 docker network create internal
