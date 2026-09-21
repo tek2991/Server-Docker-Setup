@@ -16,11 +16,7 @@ fi
 echo "Building app container image..."
 docker compose build app
 
-# 3. Export compiled frontend assets to host so Caddy can serve them directly
-echo "Syncing frontend assets to host for Caddy proxy..."
-temp_container=$(docker compose create app)
-docker cp "$temp_container:/var/www/html/public/build" src/public/ 2>/dev/null || true
-docker rm -v "$temp_container" >/dev/null 2>&1
+
 
 # 4. Run Laravel migrations and caches
 echo "Running database migrations..."
@@ -40,6 +36,10 @@ docker compose run --rm app php artisan filament:optimize || true
 # 5. Bring up container
 echo "Starting updated application container..."
 docker compose up -d
+
+# 6. Export compiled frontend assets to host so Caddy can serve them directly
+echo "Syncing frontend assets to host for Caddy proxy..."
+docker cp $(docker compose ps -q app):/var/www/html/public/build src/public/ 2>/dev/null || true
 
 echo "========================================="
 echo " Dwelly successfully deployed!"
